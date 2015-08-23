@@ -1,0 +1,8 @@
+- build: 0.1.0
+  image:
+    - mesoscloud/events:0.1.0
+    - mesoscloud/events:latest
+
+
+- tests:
+    - cmd: python -m doctest ./events.py
