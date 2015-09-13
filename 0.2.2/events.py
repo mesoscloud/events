@@ -363,7 +363,7 @@ def main():
     timer = time.time()
     while True:
 
-        if time.time() - timer > 10 or queue.count() > 1000:
+        if time.time() - timer > 10 or len(queue) > 1000:
             handle_logs()
             timer = time.time()
 
