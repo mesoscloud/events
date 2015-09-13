@@ -367,7 +367,7 @@ def main():
             handle_logs()
             timer = time.time()
 
-        time.sleep(0.05)
+        time.sleep(0.01)
 
         logs = list(filter(is_running_or_pending, logs))
 
