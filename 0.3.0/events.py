@@ -14,31 +14,19 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-import collections
 import concurrent.futures
-import datetime
-import glob
 import http.client
 import json
-import os
-import re
 import select
 import socket
 import sys
-import threading
 import time
 import traceback
 
+from riemann import handle_event, handle_log, handle_stat, write_log
 
-keep_seconds = int(os.getenv('KEEP_SECONDS', 1 * 60 * 60))
-
-log_path = '/srv/events/containers.log'
-log_time = 1 * 60
-log_size = 1 * 1024 * 1024
 
 executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-
-queue = collections.deque()
 
 
 class HTTPConnection(http.client.HTTPConnection):
@@ -101,197 +89,6 @@ def docker_stats(id_):
     return executor.submit(_get_file, '/containers/%s/stats' % id_)
 
 
-def write_log(data):
-    queue.append(data)
-
-
-def handle_logs():
-
-    with open(log_path, 'a') as f:
-        while True:
-            try:
-                data = queue.popleft()
-            except IndexError:
-                break
-            print(json.dumps(data), file=f)
-
-    try:
-        st = os.stat(log_path)
-
-        a = datetime.datetime.utcnow()
-        b = datetime.datetime.utcfromtimestamp(st.st_ctime)
-        c = st.st_size
-        d = datetime.datetime.utcfromtimestamp(st.st_mtime)
-
-        if a - b > datetime.timedelta(seconds=log_time) or c > log_size:
-            dst = log_path + '-' + d.strftime('%Y%m%d%H%M%S')
-            if not os.path.exists(dst):
-                print('mv', log_path, dst, file=sys.stderr)
-                os.rename(log_path, dst)
-    except FileNotFoundError:
-        pass
-
-    for path in sorted(glob.glob(log_path + '-*')):
-
-        a = datetime.datetime.utcnow()
-        b = datetime.datetime.strptime(path.split('-')[-1], '%Y%m%d%H%M%S')
-        c = datetime.timedelta(seconds=keep_seconds)
-
-        if a - b > c:
-            print('rm', path, file=sys.stderr)
-            os.remove(path)
-
-
-def handle_event(data):
-
-    data2 = {
-        '@timestamp': datetime.datetime.utcfromtimestamp(data['time']).strftime('%Y-%m-%dT%H:%M:%SZ'),
-    }
-
-    for k, v in data.items():
-        if k == 'time':
-            continue
-        data2['event_' + k] = v
-
-    return data2
-
-
-def handle_log(line, info):
-    """Handle a line of log output
-
-        >>> info = {'Id': '', 'Image': '', 'Name': '', 'Config': {'Image': ''}}
-
-    Normal
-
-        >>> data = handle_log(b"\\x01" + (b"\\x00" * 7) + b"2015-08-31T14:41:43.702708748Z HERE", info)
-        >>> data['log']
-        'HERE'
-
-        >>> data = handle_log(b"\\x02" + (b"\\x00" * 7) + b"2015-08-31T14:41:43.702708748Z HERE", info)
-        >>> data['log']
-        'HERE'
-
-    Not so normal
-
-    Double magic
-
-        >>> data = handle_log(b"\\x01" + (b"\\x00" * 7) + b"\\x01" + (b"\\x00" * 7) + b"2015-08-31T14:41:43.702708748Z HERE", info)
-        >>> data['log']
-        'HERE'
-
-    No magic
-
-        >>> data = handle_log(b'2015-08-31T14:36:35.179583676Z HERE', info)
-        >>> data['log']
-        'HERE'
-
-    Bad magic
-
-        >>> data = handle_log(b'\\xb02015-08-31T14:41:43.702708748Z HERE', info)
-        >>> data['log']
-        'HERE'
-
-    """
-
-    try:
-        a = {1: 'stdout', 2: 'stderr'}[line[0]]
-    except KeyError as exc:
-        print("Unable to detect stream: %r" % line, file=sys.stderr)
-        a = 'stdout'  # We don't know
-
-    m = re.search(rb'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{9}Z ', line)
-    if m is None:
-        raise Exception("missing timestamp")
-
-    line = line[m.start():]
-
-    b = line[:30]
-    c = line[31:]
-
-    data = {
-        '@timestamp': b.decode('utf-8'),
-
-        'log': c.decode('utf-8'),
-        'stream': a,
-
-        # info
-        'container': info['Name'],
-        'container_id': info['Id'],
-        'image': info['Config']['Image'],
-        'image_id': info['Image'],
-    }
-
-    return data
-
-
-def handle_stat(data, info):
-
-    data2 = {
-        '@timestamp': data['read'],
-
-        # info
-        'container': info['Name'],
-        'container_id': info['Id'],
-        'image': info['Config']['Image'],
-        'image_id': info['Image'],
-    }
-
-    # blkio_stats
-    for k, v in data['blkio_stats'].items():
-        for x in v:
-            data2['blkio_' + k + '_' + x['op'].lower()] = x['value']
-
-    # cpu_stats
-    for k in [
-            'total_usage',
-            'usage_in_kernelmode',
-            'usage_in_usermode',
-            ]:
-        data2['cpu_' + k] = data['cpu_stats']['cpu_usage'][k]
-
-    for i, x in enumerate(data['cpu_stats']['cpu_usage']['percpu_usage']):
-        data2['cpu_percpu_usage' + str(i)] = x
-
-    # memory_stats
-    data2['memory_limit'] = data['memory_stats']['limit']
-    data2['memory_usage'] = data['memory_stats']['usage']
-
-    # https://www.kernel.org/doc/Documentation/cgroups/memory.txt
-    for k in [
-            'active_anon',
-            'active_file',
-            'cache',
-            #'hierarchical_memory_limit',
-            #'hierarchical_memsw_limit',
-            'inactive_anon',
-            'inactive_file',
-            'mapped_file',
-            'pgfault',
-            'pgmajfault',
-            'pgpgin',
-            'pgpgout',
-            'rss',
-            'rss_huge',
-            'swap',
-            'unevictable',
-            'writeback',
-    ]:
-        try:
-            data2['memory_' + k] = data['memory_stats']['stats'].get('total_' + k, data['memory_stats']['stats'][k])
-        except KeyError:
-            # swap
-            pass
-
-    # network
-    for k, v in data['network'].items():
-        data2['network_' + k] = v
-
-    # precpu_stats
-    #data2['precpu_stats'] = data['precpu_stats']
-
-    return data2
-
-
 def is_running_or_pending(item):
     item = item['p']
 
@@ -330,7 +127,6 @@ def is_running(item):
     return True
 
 
-
 def main():
 
     logs = []
@@ -362,11 +158,6 @@ def main():
 
     timer = time.time()
     while True:
-
-        if time.time() - timer > 10 or len(queue) > 1000:
-            handle_logs()
-            timer = time.time()
-
         logs = list(filter(is_running_or_pending, logs))
 
         stats = list(filter(is_running_or_pending, stats))

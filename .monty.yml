@@ -25,4 +25,4 @@
 
 
 - tests:
-    - cmd: python -m doctest ./events.py
+    - cmd: python -m doctest ./*.py
