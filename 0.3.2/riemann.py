@@ -408,7 +408,7 @@ def handle_stat(data, info):
         event = {
             'time': time_,
             'state': 'ok',
-            'service': 'container %s network %s ' % (info['Name'].lstrip('/'), k),
+            'service': 'container %s network %s' % (info['Name'].lstrip('/'), k),
             'tags': [],
             'ttl': 60,
             'attributes': attributes,
