@@ -226,7 +226,7 @@ def handle_log(line, info):
             'container_id': info['Id'],
             'image': info['Config']['Image'],
             'image_id': info['Image'],
-            'container_cmd': ' '.join([shlex.quote(x) for x in info['Config']['Cmd']]),
+            'container_cmd': ' '.join([shlex.quote(x) for x in (info['Config']['Cmd'] if info['Config']['Cmd'] is not None else [])]),
 
             'log': c.decode('utf-8'),
             'stream': a,
@@ -282,7 +282,7 @@ def handle_stat(data, info):
         'container_id': info['Id'],
         'image': info['Config']['Image'],
         'image_id': info['Image'],
-        'container_cmd': ' '.join([shlex.quote(x) for x in info['Config']['Cmd']]),
+        'container_cmd': ' '.join([shlex.quote(x) for x in (info['Config']['Cmd'] if info['Config']['Cmd'] is not None else [])]),
     }
 
     # blkio_stats
@@ -422,7 +422,10 @@ def handle_stat(data, info):
 
 
 def write_log(events):
-    with riemann_client.client.QueuedClient(riemann_client.transport.TCPTransport("localhost", 5555)) as client:
-        for event in events:
-            client.event(**event)
-        client.flush()
+    try:
+        with riemann_client.client.QueuedClient(riemann_client.transport.TCPTransport("localhost", 5555)) as client:
+            for event in events:
+                client.event(**event)
+                client.flush()
+    except Exception as exc:
+        pass
