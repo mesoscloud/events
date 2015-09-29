@@ -226,7 +226,7 @@ def handle_log(line, info):
             'container_id': info['Id'],
             'image': info['Config']['Image'],
             'image_id': info['Image'],
-            'container_cmd': ' '.join([shlex.quote(x) for x in info['Config'].get('Cmd', [])]),
+            'container_cmd': ' '.join([shlex.quote(x) for x in info['Config']['Cmd']]),
 
             'log': c.decode('utf-8'),
             'stream': a,
@@ -282,7 +282,7 @@ def handle_stat(data, info):
         'container_id': info['Id'],
         'image': info['Config']['Image'],
         'image_id': info['Image'],
-        'container_cmd': ' '.join([shlex.quote(x) for x in info['Config'].get('Cmd', [])]),
+        'container_cmd': ' '.join([shlex.quote(x) for x in info['Config']['Cmd']]),
     }
 
     # blkio_stats
