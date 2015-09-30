@@ -368,6 +368,17 @@ def handle_stat(data, info):
     }
     events.append(event)
 
+    event = {
+        'time': time_,
+        'state': 'ok',
+        'service': 'container %s memory usage percent' % info['Name'].lstrip('/'),
+        'tags': [],
+        'ttl': 60,
+        'attributes': attributes,
+        'metric_f': float(data['memory_stats']['usage']) / float(data['memory_stats']['limit']) * 100.0,
+    }
+    events.append(event)
+
     # https://www.kernel.org/doc/Documentation/cgroups/memory.txt
     for k in [
             'active_anon',
