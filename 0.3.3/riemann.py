@@ -375,7 +375,7 @@ def handle_stat(data, info):
         'tags': [],
         'ttl': 60,
         'attributes': attributes,
-        'metric_f': float(data['memory_stats']['usage']) / float(data['memory_stats']['limit']) * 100.0,
+        'metric_sint64': int(round(float(data['memory_stats']['usage']) / float(data['memory_stats']['limit']) * 100.0)),
     }
     events.append(event)
 
