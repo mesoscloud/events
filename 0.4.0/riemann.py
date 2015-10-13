@@ -23,6 +23,8 @@ import sys
 import riemann_client.client
 import riemann_client.transport
 
+import riemann_custom
+
 
 def handle_event(data):
     """Handle event
@@ -123,6 +125,10 @@ def handle_event(data):
             'event_from': data.get('from', ''),
         },
     }
+
+    for f in [getattr(riemann_custom, x) for x in dir(riemann_custom) if callable(getattr(riemann_custom, x))]:
+        event = f(event)
+
     return [event]
 
 
@@ -232,6 +238,10 @@ def handle_log(line, info):
             'stream': a,
         },
     }
+
+    for f in [getattr(riemann_custom, x) for x in dir(riemann_custom) if callable(getattr(riemann_custom, x))]:
+        event = f(event)
+
     return [event]
 
 
@@ -240,14 +250,14 @@ def handle_stat(data, info):
 
         >>> blkio_stats = {}
         >>> cpu_stats = {'cpu_usage': {'total_usage': 0, 'usage_in_kernelmode': 0, 'usage_in_usermode': 0, 'percpu_usage': []}}
-        >>> memory_stats = {'limit': 0, 'usage': 0}
+        >>> memory_stats = {'limit': 256 * 1024 * 1024, 'usage': 128 * 1024 * 1024}
         >>> network = {}
         >>> data = {'read': '2015-09-23T04:13:56.297129480Z', 'blkio_stats': blkio_stats, 'cpu_stats': cpu_stats, 'memory_stats': memory_stats, 'network': network}
         >>> info = {'Name': 'foo', 'Id': '123', 'Config': {'Image': 'centos:7', 'Cmd': ['true'], 'Entrypoint': ''}, 'Image': 'abc'}
         >>> events = handle_stat(data, info)
 
         >>> len(events)
-        5
+        6
         >>> event = events[0]
         >>> riemann_client.client.Client.create_event(copy.deepcopy(event))  # doctest: +ELLIPSIS
         <google.protobuf...>
@@ -428,6 +438,10 @@ def handle_stat(data, info):
         events.append(event)
 
     # precpu_stats
+
+    for event in events:
+        for f in [getattr(riemann_custom, x) for x in dir(riemann_custom) if callable(getattr(riemann_custom, x))]:
+            event = f(event)
 
     return events
 
