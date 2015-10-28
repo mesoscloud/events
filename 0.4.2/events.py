@@ -159,7 +159,11 @@ def main():
                     stream = 'stderr'
 
                 if part.startswith(b'{'):
-                    pass
+                    try:
+                        json.loads(part.decode('utf-8'))
+                    except Exception as exc:
+                        print(exc, repr(part))
+                        continue
                 elif re.match(rb'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}', part):
                     pass
                 else:
