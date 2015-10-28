@@ -17,64 +17,31 @@
 import concurrent.futures
 import http.client
 import json
+import os
+import re
 import select
 import socket
 import sys
 import time
 import traceback
 
+from docker import *
 from riemann import handle_event, handle_log, handle_stat, write_log
 
 
 executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 
 
-class HTTPConnection(http.client.HTTPConnection):
-
-    def __init__(self):
-        http.client.HTTPConnection.__init__(self, 'localhost')
-
-    def connect(self):
-        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        sock.connect('/var/run/docker.sock')
-        self.sock = sock
-
-
-class HTTPError(Exception):
-
-    def __init__(self, status, reason):
-        self.status = status
-        self.reason = reason
-
-
-def _get_json(path):
-    conn = HTTPConnection()
-    conn.request('GET', path)
-    resp = conn.getresponse()
-    if resp.status != 200:
-        raise HTTPError(resp.status, resp.reason)
-    return json.loads(resp.read().decode('utf-8'))
-
-
-def _get_file(path):
-    conn = HTTPConnection()
-    conn.request('GET', path)
-    resp = conn.getresponse()
-    if resp.status != 200:
-        raise HTTPError(resp.status, resp.reason)
-    return resp
-
-
 def docker_containers():
-    return _get_json('/containers/json')
+    return get('/containers/json')
 
 
 def docker_inspect(id_):
-    return _get_json('/containers/%s/json' % id_)
+    return get('/containers/%s/json' % id_)
 
 
 def docker_events():
-    return executor.submit(_get_file, '/events')
+    return executor.submit(get, '/events', async=True)
 
 
 def docker_logs(id_, since=None):
@@ -82,11 +49,11 @@ def docker_logs(id_, since=None):
         since = '&since=%s' % int(since)
     else:
         since = ''
-    return executor.submit(_get_file, '/containers/%s/logs?follow=1&stdout=1&stderr=1%s&timestamps=1' % (id_, since))
+    return executor.submit(get, '/containers/%s/logs?follow=1&stdout=1&stderr=1%s&timestamps=1' % (id_, since), async=True)
 
 
 def docker_stats(id_):
-    return executor.submit(_get_file, '/containers/%s/stats' % id_)
+    return executor.submit(get, '/containers/%s/stats' % id_, async=True)
 
 
 def is_running_or_pending(item):
@@ -156,8 +123,11 @@ def main():
 
     events = docker_events()
 
-    timer = time.time()
+    write_count = 0
+    write_start = time.time()
+
     while True:
+
         logs = list(filter(is_running_or_pending, logs))
 
         stats = list(filter(is_running_or_pending, stats))
@@ -175,67 +145,97 @@ def main():
             continue
 
         for r in rs:
-            line = r.readline()
-            if not line:
-                continue
 
-            if events.done() and r is events.result():
-                data = json.loads(line.decode('utf-8'))
+            stream = None
 
-                try:
-                    write_log(handle_event(data))
-                except Exception as exc:
-                    print("Unable to handle event: %r" % data, file=sys.stderr)
-                    traceback.print_exc()
+            for part in os.read(r.fileno(), 8192 * 1024).split(b'\r\n'):
 
-                if data['status'] == 'start':
+                if part == b'':
+                    continue
+
+                if part[:7] == b'\x01\x00\x00\x00\x00\x00\x00':
+                    stream = 'stdout'
+                if part[:7] == b'\x02\x00\x00\x00\x00\x00\x00':
+                    stream = 'stderr'
+
+                if part.startswith(b'{'):
+                    pass
+                elif re.match(rb'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}', part):
+                    pass
+                else:
+                    continue
+
+                line = part
+
+                if events.done() and r is events.result():
+                    data = json.loads(line.decode('utf-8'))
 
                     try:
-                        info = docker_inspect(data['id'])
-                    except HTTPError as exc:
-                        if exc.status != 404:
-                            raise
+                        out = handle_event(data)
+                        write_count += len(out)
+                        write_log(out)
+                    except Exception as exc:
+                        print("Unable to handle event: %r" % data, file=sys.stderr)
+                        traceback.print_exc()
+
+                    if data['status'] == 'start':
+
+                        try:
+                            info = docker_inspect(data['id'])
+                        except HTTPError as exc:
+                            if exc.status != 404:
+                                raise
+                            continue
+
+                        if info['Config']['Tty']:
+                            continue
+
+                        logs.append({
+                            'p': docker_logs(data['id']),
+                            'info': info,
+                        })
+                        stats.append({
+                            'p': docker_stats(data['id']),
+                            'info': info,
+                        })
+
+                elif r in [x['p'].result() for x in filter(is_running, logs)]:
+
+                    try:
+                        info = [l['info'] for l in filter(is_running, logs) if r == l['p'].result()][0]
+                    except IndexError:
                         continue
 
-                    if info['Config']['Tty']:
+                    try:
+                        out = handle_log(line, info, stream)
+                        write_count += len(out)
+                        write_log(out)
+                    except Exception as exc:
+                        print("Unable to handle log: %r" % line, file=sys.stderr)
+                        traceback.print_exc()
+
+                elif r in [x['p'].result() for x in filter(is_running, stats)]:
+
+                    try:
+                        info = [s['info'] for s in filter(is_running, stats) if r == s['p'].result()][0]
+                    except IndexError:
                         continue
 
-                    logs.append({
-                        'p': docker_logs(data['id']),
-                        'info': info,
-                    })
-                    stats.append({
-                        'p': docker_stats(data['id']),
-                        'info': info,
-                    })
+                    data = json.loads(line.decode('utf-8'))
 
-            elif r in [x['p'].result() for x in filter(is_running, logs)]:
+                    try:
+                        out = handle_stat(data, info)
+                        write_count += len(out)
+                        write_log(out)
+                    except Exception as exc:
+                        print("Unable to handle stat: %r" % data, file=sys.stderr)
+                        traceback.print_exc()
 
-                try:
-                    info = [l['info'] for l in filter(is_running, logs) if r == l['p'].result()][0]
-                except IndexError:
-                    continue
+        if time.time() - write_start >= 10:
+            print("events:", write_count)
+            write_start = time.time()
 
-                try:
-                    write_log(handle_log(line, info))
-                except Exception as exc:
-                    print("Unable to handle log: %r" % line, file=sys.stderr)
-                    traceback.print_exc()
-
-            elif r in [x['p'].result() for x in filter(is_running, stats)]:
-
-                try:
-                    info = [s['info'] for s in filter(is_running, stats) if r == s['p'].result()][0]
-                except IndexError:
-                    continue
-
-                data = json.loads(line.decode('utf-8'))
-
-                try:
-                    write_log(handle_stat(data, info))
-                except Exception as exc:
-                    print("Unable to handle stat: %r" % data, file=sys.stderr)
-                    traceback.print_exc()
+        time.sleep(1)
 
 
 if __name__ == '__main__':

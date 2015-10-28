@@ -132,42 +132,8 @@ def handle_event(data):
     return [event]
 
 
-def handle_log(line, info):
+def handle_log(line, info, stream=None):
     """Handle a line of log output
-
-        >>> info = {'Id': '', 'Image': '', 'Name': 'foo', 'Config': {'Image': '', 'Cmd': [], 'Entrypoint': ''}}
-
-    Normal
-
-        >>> data = handle_log(b"\\x01" + (b"\\x00" * 7) + b"2015-08-31T14:41:43.702708748Z HERE", info)
-        >>> data[0]['attributes']['log']
-        'HERE'
-
-        >>> data = handle_log(b"\\x02" + (b"\\x00" * 7) + b"2015-08-31T14:41:43.702708748Z HERE", info)
-        >>> data[0]['attributes']['log']
-        'HERE'
-
-    Not so normal
-
-    Double magic
-
-        >>> data = handle_log(b"\\x01" + (b"\\x00" * 7) + b"\\x01" + (b"\\x00" * 7) + b"2015-08-31T14:41:43.702708748Z HERE", info)
-        >>> data[0]['attributes']['log']
-        'HERE'
-
-    No magic
-
-        >>> data = handle_log(b'2015-08-31T14:36:35.179583676Z HERE', info)
-        >>> data[0]['attributes']['log']
-        'HERE'
-
-    Bad magic
-
-        >>> data = handle_log(b'\\xb02015-08-31T14:41:43.702708748Z HERE', info)
-        >>> data[0]['attributes']['log']
-        'HERE'
-
-    XXX
 
         >>> line = b"\\x01" + (b"\\x00" * 7) + b"2015-08-31T14:41:43.702708748Z HERE"
         >>> info = {'Id': '', 'Image': '', 'Name': 'foo', 'Config': {'Image': '', 'Cmd': [], 'Entrypoint': ''}}
@@ -206,11 +172,7 @@ def handle_log(line, info):
 
     """
 
-    try:
-        a = {1: 'stdout', 2: 'stderr'}[line[0]]
-    except KeyError as exc:
-        print("Unable to detect stream: %r" % line, file=sys.stderr)
-        a = 'stdout'  # We don't know
+    a = stream if stream is not None else 'stdout'
 
     m = re.search(rb'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{9}Z ', line)
     if m is None:
@@ -343,17 +305,18 @@ def handle_stat(data, info):
     }
     events.append(event)
 
-    for i, x in enumerate(data['cpu_stats']['cpu_usage']['percpu_usage']):
-        event = {
-            'time': time_,
-            'state': 'ok',
-            'service': 'container %s cpu usage in cpu%i' % (info['Name'].lstrip('/'), i),
-            'tags': [],
-            'ttl': 60,
-            'attributes': attributes,
-            'metric_sint64': x,
-        }
-        events.append(event)
+    if data['cpu_stats']['cpu_usage']['percpu_usage'] is not None:
+        for i, x in enumerate(data['cpu_stats']['cpu_usage']['percpu_usage']):
+            event = {
+                'time': time_,
+                'state': 'ok',
+                'service': 'container %s cpu usage in cpu%i' % (info['Name'].lstrip('/'), i),
+                'tags': [],
+                'ttl': 60,
+                'attributes': attributes,
+                'metric_sint64': x,
+            }
+            events.append(event)
 
     # memory_stats
     event = {
