@@ -56,6 +56,8 @@ def handle_event(data):
         'abc'
         >>> event['attributes']['event_from']
         'centos:7'
+        >>> event['attributes']['@timestamp']
+        '1970-01-01T00:00:00Z'
 
     exec_start: ...
 
@@ -84,6 +86,8 @@ def handle_event(data):
         'abc'
         >>> event['attributes']['event_from']
         'centos:7'
+        >>> event['attributes']['@timestamp']
+        '1970-01-01T00:00:00Z'
 
     tag, etc
 
@@ -111,6 +115,8 @@ def handle_event(data):
         'abc'
         >>> event['attributes']['event_from']
         ''
+        >>> event['attributes']['@timestamp']
+        '1970-01-01T00:00:00Z'
 
     """
     event = {
@@ -123,6 +129,7 @@ def handle_event(data):
             'event_status': data['status'],
             'event_id': data['id'],
             'event_from': data.get('from', ''),
+            '@timestamp': datetime.datetime.utcfromtimestamp(data['time']).strftime('%Y-%m-%dT%H:%M:%SZ'),
         },
     }
 
@@ -169,6 +176,8 @@ def handle_log(line, info, stream=None):
         'HERE'
         >>> event['attributes']['stream']
         'stdout'
+        >>> event['attributes']['@timestamp']
+        '2015-08-31T14:41:43Z'
 
     """
 
@@ -198,6 +207,7 @@ def handle_log(line, info, stream=None):
 
             'log': c.decode('utf-8'),
             'stream': a,
+            '@timestamp': b.decode('utf-8').split('.')[0]+'Z',
         },
     }
 
@@ -242,6 +252,8 @@ def handle_stat(data, info):
         'centos:7'
         >>> event['attributes']['image_id']
         'abc'
+        >>> event['attributes']['@timestamp']
+        '2015-09-23T04:13:56Z'
 
     """
 
@@ -255,6 +267,7 @@ def handle_stat(data, info):
         'image': info['Config']['Image'],
         'image_id': info['Image'],
         'container_cmd': ' '.join([shlex.quote(x) for x in (info['Config']['Cmd'] if info['Config']['Cmd'] is not None else [])]),
+        '@timestamp': data['read'].split('.')[0]+'Z',
     }
 
     # blkio_stats
