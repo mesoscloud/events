@@ -393,17 +393,18 @@ def handle_stat(data, info):
             pass
 
     # network
-    for k, v in data['network'].items():
-        event = {
-            'time': time_,
-            'state': 'ok',
-            'service': 'container %s network %s' % (info['Name'].lstrip('/'), k),
-            'tags': [],
-            'ttl': 60,
-            'attributes': attributes,
-            'metric_sint64': v,
-        }
-        events.append(event)
+    if 'network' in data:
+        for k, v in data['network'].items():
+            event = {
+                'time': time_,
+                'state': 'ok',
+                'service': 'container %s network %s' % (info['Name'].lstrip('/'), k),
+                'tags': [],
+                'ttl': 60,
+                'attributes': attributes,
+                'metric_sint64': v,
+            }
+            events.append(event)
 
     # precpu_stats
 
