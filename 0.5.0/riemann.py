@@ -23,8 +23,6 @@ import sys
 import riemann_client.client
 import riemann_client.transport
 
-import riemann_custom
-
 
 def handle_event(data):
     """Handle event
@@ -133,9 +131,6 @@ def handle_event(data):
         },
     }
 
-    for f in [getattr(riemann_custom, x) for x in dir(riemann_custom) if callable(getattr(riemann_custom, x))]:
-        event = f(event)
-
     return [event]
 
 
@@ -210,9 +205,6 @@ def handle_log(line, info, stream=None):
             '@timestamp': b.decode('utf-8').split('.')[0]+'Z',
         },
     }
-
-    for f in [getattr(riemann_custom, x) for x in dir(riemann_custom) if callable(getattr(riemann_custom, x))]:
-        event = f(event)
 
     return [event]
 
@@ -414,10 +406,6 @@ def handle_stat(data, info):
         events.append(event)
 
     # precpu_stats
-
-    for event in events:
-        for f in [getattr(riemann_custom, x) for x in dir(riemann_custom) if callable(getattr(riemann_custom, x))]:
-            event = f(event)
 
     return events
 
