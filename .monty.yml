@@ -1,7 +1,11 @@
+- build: 0.5.0
+  image:
+    - mesoscloud/events:0.5.0
+    - mesoscloud/events:latest
+
 - build: 0.4.2
   image:
     - mesoscloud/events:0.4.2
-    - mesoscloud/events:latest
 
 - build: 0.4.1
   image:
