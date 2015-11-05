@@ -129,6 +129,8 @@ def main():
     write_count = 0
     write_start = time.time()
 
+    log_queue = []
+
     while True:
 
         logs = list(filter(is_running_or_pending, logs))
@@ -183,9 +185,7 @@ def main():
                     data = json.loads(line.decode('utf-8'))
 
                     try:
-                        out = handle_event(data)
-                        write_count += len(out)
-                        write_log(out)
+                        log_queue += handle_event(data)
                     except Exception as exc:
                         print("Unable to handle event: %r" % data, file=sys.stderr)
                         traceback.print_exc()
@@ -223,9 +223,7 @@ def main():
                         continue
 
                     try:
-                        out = handle_log(line, info, stream)
-                        write_count += len(out)
-                        write_log(out)
+                        log_queue += handle_log(line, info, stream)
                     except Exception as exc:
                         print("Unable to handle log: %r" % line, file=sys.stderr)
                         traceback.print_exc()
@@ -240,12 +238,25 @@ def main():
                     data = json.loads(line.decode('utf-8'))
 
                     try:
-                        out = handle_stat(data, info)
-                        write_count += len(out)
-                        write_log(out)
+                        log_queue += handle_stat(data, info)
                     except Exception as exc:
                         print("Unable to handle stat: %r" % data, file=sys.stderr)
                         traceback.print_exc()
+
+
+        if log_queue:
+
+            write_count += len(log_queue)
+            try:
+                write_log(log_queue)
+            except Exception as exc:
+                traceback.print_exc()
+
+            try:
+                while True:
+                    log_queue.pop()
+            except IndexError:
+                pass
 
         if time.time() - write_start >= 10:
             print("events:", write_count)
