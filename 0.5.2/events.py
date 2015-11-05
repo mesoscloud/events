@@ -15,6 +15,7 @@
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 import concurrent.futures
+import datetime
 import http.client
 import json
 import os
@@ -27,6 +28,7 @@ import traceback
 
 from docker import *
 from riemann import handle_event, handle_log, handle_stat, write_log
+#from debug import handle_event, handle_log, handle_stat, write_log
 
 
 executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
@@ -119,6 +121,7 @@ def main():
         stats.append({
             'p': docker_stats(container['Id']),
             'info': info,
+            'id': container['Id'],
         })
 
     events = docker_events()
@@ -194,14 +197,18 @@ def main():
                         if info['Config']['Tty']:
                             continue
 
+                        since = int((datetime.datetime.strptime(info['State']['StartedAt'].split('.')[0], '%Y-%m-%dT%H:%M:%S') - datetime.datetime(1970,1,1)).total_seconds())
+
                         logs.append({
-                            'p': docker_logs(data['id']),
+                            'p': docker_logs(data['id'], since),
                             'info': info,
                         })
-                        stats.append({
-                            'p': docker_stats(data['id']),
-                            'info': info,
-                        })
+                        if not [x for x in stats if x['id'] == container['Id']]:
+                            stats.append({
+                                'p': docker_stats(data['id']),
+                                'info': info,
+                                'id': container['Id'],
+                            })
 
                 elif r in [x['p'].result() for x in filter(is_running, logs)]:
 
