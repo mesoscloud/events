@@ -145,6 +145,11 @@ def main():
             rs, _, _ = select.select(rlist, [], [], 1)
         except AttributeError as exc:
             # AttributeError: 'NoneType' object has no attribute 'fileno'
+            time.sleep(0.05)
+            continue
+        except ValueError as exc:
+            # ValueError: filedescriptor out of range in select()
+            time.sleep(0.05)
             continue
 
         for r in rs:
