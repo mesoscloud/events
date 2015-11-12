@@ -114,10 +114,12 @@ def main():
         if info['Config']['Tty']:
             continue
 
+        print("%(Id).12s: logs" % info)
         logs.append({
             'p': docker_logs(container['Id'], since=time.time()),
             'info': info,
         })
+        print("%(Id).12s: stats" % info)
         stats.append({
             'p': docker_stats(container['Id']),
             'info': info,
@@ -130,6 +132,8 @@ def main():
     write_start = time.time()
 
     log_queue = []
+
+    partial = {}
 
     while True:
 
@@ -158,7 +162,9 @@ def main():
 
             stream = None
 
-            for part in os.read(r.fileno(), 8192 * 1024).split(b'\r\n'):
+            for part in os.read(r.fileno(), 8192).split(b'\r\n'):
+
+                part = partial.pop(r, b'') + part
 
                 if part == b'':
                     continue
@@ -172,7 +178,7 @@ def main():
                     try:
                         json.loads(part.decode('utf-8'))
                     except Exception as exc:
-                        print(exc, repr(part))
+                        partial[r] = part
                         continue
                 elif re.match(rb'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}', part):
                     pass
@@ -204,15 +210,17 @@ def main():
 
                         since = int((datetime.datetime.strptime(info['State']['StartedAt'].split('.')[0], '%Y-%m-%dT%H:%M:%S') - datetime.datetime(1970,1,1)).total_seconds())
 
+                        print("%(Id).12s: logs" % info)
                         logs.append({
                             'p': docker_logs(data['id'], since),
                             'info': info,
                         })
-                        if not [x for x in stats if x['id'] == container['Id']]:
+                        if not [x for x in stats if x['id'] == info['Id']]:
+                            print("%(Id).12s: stats" % info)
                             stats.append({
                                 'p': docker_stats(data['id']),
                                 'info': info,
-                                'id': container['Id'],
+                                'id': info['Id'],
                             })
 
                 elif r in [x['p'].result() for x in filter(is_running, logs)]:
