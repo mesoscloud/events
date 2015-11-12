@@ -221,7 +221,7 @@ def handle_stat(data, info):
         >>> events = handle_stat(data, info)
 
         >>> len(events)
-        6
+        4
         >>> event = events[0]
         >>> riemann_client.client.Client.create_event(copy.deepcopy(event))  # doctest: +ELLIPSIS
         <google.protobuf...>
@@ -288,40 +288,40 @@ def handle_stat(data, info):
     }
     events.append(event)
 
-    event = {
-        'time': time_,
-        'state': 'ok',
-        'service': 'container %s cpu usage in kernelmode' % info['Name'].lstrip('/'),
-        'tags': [],
-        'ttl': 60,
-        'attributes': attributes,
-        'metric_sint64': data['cpu_stats']['cpu_usage']['usage_in_kernelmode'],
-    }
-    events.append(event)
-
-    event = {
-        'time': time_,
-        'state': 'ok',
-        'service': 'container %s cpu usage in usermode' % info['Name'].lstrip('/'),
-        'tags': [],
-        'ttl': 60,
-        'attributes': attributes,
-        'metric_sint64': data['cpu_stats']['cpu_usage']['usage_in_usermode'],
-    }
-    events.append(event)
-
-    if data['cpu_stats']['cpu_usage']['percpu_usage'] is not None:
-        for i, x in enumerate(data['cpu_stats']['cpu_usage']['percpu_usage']):
-            event = {
-                'time': time_,
-                'state': 'ok',
-                'service': 'container %s cpu usage in cpu%i' % (info['Name'].lstrip('/'), i),
-                'tags': [],
-                'ttl': 60,
-                'attributes': attributes,
-                'metric_sint64': x,
-            }
-            events.append(event)
+#    event = {
+#        'time': time_,
+#        'state': 'ok',
+#        'service': 'container %s cpu usage in kernelmode' % info['Name'].lstrip('/'),
+#        'tags': [],
+#        'ttl': 60,
+#        'attributes': attributes,
+#        'metric_sint64': data['cpu_stats']['cpu_usage']['usage_in_kernelmode'],
+#    }
+#    events.append(event)
+#
+#    event = {
+#        'time': time_,
+#        'state': 'ok',
+#        'service': 'container %s cpu usage in usermode' % info['Name'].lstrip('/'),
+#        'tags': [],
+#        'ttl': 60,
+#        'attributes': attributes,
+#        'metric_sint64': data['cpu_stats']['cpu_usage']['usage_in_usermode'],
+#    }
+#    events.append(event)
+#
+#    if data['cpu_stats']['cpu_usage']['percpu_usage'] is not None:
+#        for i, x in enumerate(data['cpu_stats']['cpu_usage']['percpu_usage']):
+#            event = {
+#                'time': time_,
+#                'state': 'ok',
+#                'service': 'container %s cpu usage in cpu%i' % (info['Name'].lstrip('/'), i),
+#                'tags': [],
+#                'ttl': 60,
+#                'attributes': attributes,
+#                'metric_sint64': x,
+#            }
+#            events.append(event)
 
     # memory_stats
     event = {
@@ -359,23 +359,23 @@ def handle_stat(data, info):
 
     # https://www.kernel.org/doc/Documentation/cgroups/memory.txt
     for k in [
-            'active_anon',
-            'active_file',
+#            'active_anon',
+#            'active_file',
             'cache',
             #'hierarchical_memory_limit',
             #'hierarchical_memsw_limit',
-            'inactive_anon',
-            'inactive_file',
-            'mapped_file',
-            'pgfault',
-            'pgmajfault',
-            'pgpgin',
-            'pgpgout',
+#            'inactive_anon',
+#            'inactive_file',
+#            'mapped_file',
+#            'pgfault',
+#            'pgmajfault',
+#            'pgpgin',
+#            'pgpgout',
             'rss',
-            'rss_huge',
+#            'rss_huge',
             'swap',
-            'unevictable',
-            'writeback',
+#            'unevictable',
+#            'writeback',
     ]:
         try:
             event = {
