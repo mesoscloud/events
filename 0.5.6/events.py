@@ -96,6 +96,20 @@ def is_running(item):
     return True
 
 
+def since(info):
+    """Since
+
+        >>> since({'State': {'StartedAt': '2015-12-02T23:54:02.099502934Z'}})
+        1449100442
+
+        >>> since({'State': {'StartedAt': '2015-12-02T23:54:02Z'}})
+        1449100442
+
+    """
+    startedat = info['State']['StartedAt'][:len('2015-12-02T23:54:02')]
+    return int((datetime.datetime.strptime(startedat, '%Y-%m-%dT%H:%M:%S') - datetime.datetime(1970,1,1)).total_seconds())
+
+
 def main():
 
     logs = []
@@ -208,11 +222,9 @@ def main():
                         if info['Config']['Tty']:
                             continue
 
-                        since = int((datetime.datetime.strptime(info['State']['StartedAt'].split('.')[0], '%Y-%m-%dT%H:%M:%S') - datetime.datetime(1970,1,1)).total_seconds())
-
                         print("%(Id).12s: logs" % info)
                         logs.append({
-                            'p': docker_logs(data['id'], since),
+                            'p': docker_logs(data['id'], since(info)),
                             'info': info,
                         })
                         if not [x for x in stats if x['id'] == info['Id']]:
