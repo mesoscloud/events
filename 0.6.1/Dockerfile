@@ -8,7 +8,7 @@ RUN ln -s python3 /usr/bin/python
 
 RUN pip install riemann-client
 
-COPY . /src
+COPY docker.py events.py riemann.py /src/
 
 WORKDIR /src
 
