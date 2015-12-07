@@ -1,137 +1,11 @@
-#!/usr/bin/python -u
-#
-# Copyright (c) 2015 Peter Ericson <pdericson@gmail.com>
-#
-# Permission to use, copy, modify, and distribute this software for any
-# purpose with or without fee is hereby granted, provided that the above
-# copyright notice and this permission notice appear in all copies.
-#
-# THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-# WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-# MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-# ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-# WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-# ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-# OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-
 import copy
 import datetime
 import re
 import shlex
-import sys
 
 import riemann_client.client
-import riemann_client.transport
 
-
-def handle_event(data):
-    """Handle event
-
-    create, etc
-
-        >>> data = {'time': 0, 'id': 'abc', 'status': 'create', 'from': 'centos:7'}
-        >>> events = handle_event(data)
-        >>> len(events)
-        1
-        >>> event = events[0]
-
-        >>> riemann_client.client.Client.create_event(copy.deepcopy(event))  # doctest: +ELLIPSIS
-        <google.protobuf...>
-
-        >>> event['time']
-        0
-        >>> event['state']
-        'ok'
-        >>> event['service']
-        'docker'
-        >>> event['tags']
-        []
-        >>> event['ttl']
-        60
-        >>> event['attributes']['event_status']
-        'create'
-        >>> event['attributes']['event_id']
-        'abc'
-        >>> event['attributes']['event_from']
-        'centos:7'
-        >>> event['attributes']['@timestamp']
-        '1970-01-01T00:00:00Z'
-
-    exec_start: ...
-
-        >>> data = {'time': 0, 'id': 'abc', 'status': 'exec_start: <command>', 'from': 'centos:7'}
-        >>> events = handle_event(data)
-        >>> len(events)
-        1
-        >>> event = events[0]
-
-        >>> riemann_client.client.Client.create_event(copy.deepcopy(event))  # doctest: +ELLIPSIS
-        <google.protobuf...>
-
-        >>> event['time']
-        0
-        >>> event['state']
-        'ok'
-        >>> event['service']
-        'docker'
-        >>> event['tags']
-        []
-        >>> event['ttl']
-        60
-        >>> event['attributes']['event_status']
-        'exec_start: <command>'
-        >>> event['attributes']['event_id']
-        'abc'
-        >>> event['attributes']['event_from']
-        'centos:7'
-        >>> event['attributes']['@timestamp']
-        '1970-01-01T00:00:00Z'
-
-    tag, etc
-
-        >>> data = {'time': 0, 'id': 'abc', 'status': 'tag'}
-        >>> events = handle_event(data)
-        >>> len(events)
-        1
-        >>> event = events[0]
-        >>> riemann_client.client.Client.create_event(copy.deepcopy(event))  # doctest: +ELLIPSIS
-        <google.protobuf...>
-
-        >>> event['time']
-        0
-        >>> event['state']
-        'ok'
-        >>> event['service']
-        'docker'
-        >>> event['tags']
-        []
-        >>> event['ttl']
-        60
-        >>> event['attributes']['event_status']
-        'tag'
-        >>> event['attributes']['event_id']
-        'abc'
-        >>> event['attributes']['event_from']
-        ''
-        >>> event['attributes']['@timestamp']
-        '1970-01-01T00:00:00Z'
-
-    """
-    event = {
-        'time': data['time'],
-        'state': 'ok',
-        'service': 'docker',
-        'tags': [],
-        'ttl': 60,
-        'attributes': {
-            'event_status': data['status'],
-            'event_id': data['id'],
-            'event_from': data.get('from', ''),
-            '@timestamp': datetime.datetime.utcfromtimestamp(data['time']).strftime('%Y-%m-%dT%H:%M:%SZ'),
-        },
-    }
-
-    return [event]
+__all__ = ['handle_log', 'handle_stat']
 
 
 def handle_log(line, info, stream=None):
@@ -174,13 +48,19 @@ def handle_log(line, info, stream=None):
         >>> event['attributes']['@timestamp']
         '2015-08-31T14:41:43Z'
 
+        >>> line = b"Error running logs job:"
+        >>> info = {'Id': '', 'Image': '', 'Name': 'foo', 'Config': {'Image': '', 'Cmd': [], 'Entrypoint': ''}}
+
+        >>> events = handle_log(line, info)
+
     """
+    # https://github.com/docker/docker/blob/87e7ee914261efd2580accae98569466f42cd003/api/server/router/container/container_routes.go#L148
+    if line.startswith(b"Error running logs job:"):
+        return []
 
     a = stream if stream is not None else 'stdout'
 
     m = re.search(rb'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{9}Z ', line)
-    if m is None:
-        raise Exception("missing timestamp")
 
     line = line[m.start():]
 
@@ -409,13 +289,3 @@ def handle_stat(data, info):
     # precpu_stats
 
     return events
-
-
-def write_log(events):
-    try:
-        with riemann_client.client.QueuedClient(riemann_client.transport.TCPTransport("localhost", 5555)) as client:
-            for event in events:
-                client.event(**event)
-                client.flush()
-    except Exception as exc:
-        pass

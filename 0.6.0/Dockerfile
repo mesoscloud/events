@@ -1,8 +1,17 @@
-FROM python:3-onbuild
+FROM alpine:3.2
 
-COPY events.py /usr/src/app/
-COPY docker.py /usr/src/app/
-COPY riemann.py /usr/src/app/
-COPY debug.py /usr/src/app/
+RUN apk add --update curl python3
 
-CMD ["python", "-u", "./events.py"]
+RUN curl -fLO https://bootstrap.pypa.io/get-pip.py && python3 get-pip.py
+
+RUN ln -s python3 /usr/bin/python
+
+RUN pip install riemann-client
+
+COPY . /src
+
+WORKDIR /src
+
+CMD ["python3", "./events.py"]
+
+VOLUME /srv/events
