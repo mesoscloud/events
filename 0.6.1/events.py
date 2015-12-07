@@ -156,12 +156,17 @@ def main():
 
                 # XXX
                 if not re.match(rb'[0-9a-f]+\r\n', data, re.I):
-                    print(container, data)
-                    try:
-                        del buffy[container.logs_fd]
-                    except KeyError:
-                        pass
-                    continue
+                    m = re.search(rb'\r\n[0-9a-f]+\r\n', data, re.I)
+                    if m:
+                        print(container, 'skipping', repr(data[:m.start() + 2]))
+                        data = data[m.start() + 2:]
+                    else:
+                        print(container, 'unusable', repr(data))
+                        try:
+                            del buffy[container.logs_fd]
+                        except KeyError:
+                            pass
+                        continue
 
                 while 1:
                     data, line = docker.parse(data)
