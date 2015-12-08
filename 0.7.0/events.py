@@ -35,6 +35,19 @@ def handle_stat(client, container, line):
         client.flush()
 
 
+def summarise(line, width=60):
+    """Summarise
+
+        >>> summarise('hi')
+        'hi'
+
+        >>> summarise('hi ' * 100)
+        'hi hi hi hi hi hi hi hi hi hi hi hi hi hi hi hi hi hi hi hi ...'
+
+    """
+    return line[:width] + '...' if len(line) > width else line[:width]
+
+
 def main():
 
     containers1 = []
@@ -50,6 +63,8 @@ def main():
             docker.Container.since = int(f.read().rstrip())
         print('since', docker.Container.since)
     except FileNotFoundError:
+        pass
+    except ValueError:
         pass
 
     with riemann_client.client.QueuedClient(riemann_client.transport.TCPTransport('localhost', 5555)) as client:
@@ -74,7 +89,7 @@ def main():
 
                     if container.logs_fd is not None:
                         if buffy.get(container.logs_fd):
-                            print(container, 'logs', repr(buffy[container.logs_fd]))
+                            print(container, 'logs', 'remaining', summarise(repr(buffy[container.logs_fd])))
                         try:
                             del buffy[container.logs_fd]
                         except KeyError:
@@ -84,7 +99,7 @@ def main():
 
                     if container.stats_fd is not None:
                         if buffy.get(container.stats_fd):
-                            print(container, 'stats', repr(buffy[container.stats_fd]))
+                            print(container, 'stats', 'remaining', summarise(repr(buffy[container.stats_fd])))
                         try:
                             del buffy[container.stats_fd]
                         except KeyError:
@@ -147,26 +162,7 @@ def main():
 
                 data = os.read(fd, 8192)
 
-                # XXX
-                if data == b'0\r\n\r\n':
-                    #print(container, data)
-                    continue
-
                 data = buffy.get(fd, b'') + data
-
-                # XXX
-                if not re.match(rb'[0-9a-f]+\r\n', data, re.I):
-                    m = re.search(rb'\r\n[0-9a-f]+\r\n', data, re.I)
-                    if m:
-                        print(container, 'skipping', repr(data[:m.start() + 2]))
-                        data = data[m.start() + 2:]
-                    else:
-                        print(container, 'unusable', repr(data))
-                        try:
-                            del buffy[container.logs_fd]
-                        except KeyError:
-                            pass
-                        continue
 
                 while 1:
                     data, line = docker.parse(data)

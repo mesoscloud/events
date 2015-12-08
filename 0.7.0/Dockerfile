@@ -8,10 +8,10 @@ RUN ln -s python3 /usr/bin/python
 
 RUN pip install riemann-client
 
-COPY docker.py events.py riemann.py /src/
+COPY docker.py events.py riemann.py watchdog.py /src/
 
 WORKDIR /src
 
-CMD ["python3", "./events.py"]
+CMD ["python3", "./watchdog.py"]
 
 VOLUME /srv/events

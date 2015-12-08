@@ -3,6 +3,7 @@ import datetime
 import http.client
 import json
 import pickle
+import re
 import select
 import socket
 
@@ -215,7 +216,7 @@ def parse(data):
         (b'80\\r\\n{"status":"create","id":"46e344569d70e9cf849a217701d5ef2e866dff122c1d5f1641b490e680c15c5d","from":"centos:7"', b'')
 
     """
-    if data.count(b'\r\n') < 2:
+    if not re.match(rb'[0-9a-f]+\r\n.*\r\n', data, re.I|re.S):
         return data, b''
 
     i = data.find(b'\r\n')
