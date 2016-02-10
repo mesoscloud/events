@@ -49,6 +49,8 @@ def summarise(line, width=60):
 
 
 def main():
+    riemann_host = os.getenv('RIEMANN_HOST', 'localhost')
+    riemann_port = int(os.getenv('RIEMANN_PORT', '5555'))
 
     containers1 = []
 
@@ -67,7 +69,7 @@ def main():
     except ValueError:
         pass
 
-    with riemann_client.client.QueuedClient(riemann_client.transport.TCPTransport('localhost', 5555)) as client:
+    with riemann_client.client.QueuedClient(riemann_client.transport.TCPTransport(riemann_host, riemann_port)) as client:
 
         while 1:
 
