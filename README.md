@@ -6,7 +6,7 @@ Docker events
 
 ## Python
 
-[![](https://badge.imagelayers.io/mesoscloud/events:0.2.0.svg)](https://imagelayers.io/?images=mesoscloud/events:0.2.0)
+[![](https://badge.imagelayers.io/mesoscloud/events:0.2.2.svg)](https://imagelayers.io/?images=mesoscloud/events:0.2.2)
 
 e.g.
 
@@ -14,7 +14,7 @@ e.g.
 docker run -d \
 -v /var/run/docker.sock:/var/run/docker.sock \
 -v /srv/events:/srv/events \
---name=events --restart=always mesoscloud/events:0.2.0
+--name=events --restart=always mesoscloud/events:0.2.2
 ```
 
 ## stats
